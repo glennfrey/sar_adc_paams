@@ -1,0 +1,110 @@
+###############################################################################
+# sar_adc.upf — UPF 1801 Power Intent for SAR ADC PA-AMS Verification
+#
+# Power Domains:
+#   PD_TOP  : Always-on (bandgap, bias, global control)
+#   PD_ANA  : Analog domain (S/H, comparator, DAC) — can be shut down
+#   PD_DIG  : Digital SAR logic — can be shut down or clock-gated
+#
+# Low-Power Strategy:
+#   - Power switches for PD_ANA and PD_DIG (controlled by pwr_en)
+#   - Isolation cells from PD_ANA → PD_DIG when PD_ANA is off
+#   - Level shifters for signals crossing voltage domains
+#   - Retention registers for SAR state during PD_DIG shutdown
+#
+# PA-AMS Verification Targets:
+#   - Crowbar current during power-up/down sequencing
+#   - Backdoor powering sneak paths
+#   - Recovery lockup after domain restoration
+###############################################################################
+
+upf_version 2.1;
+
+#-------------------------------------------------------------------------
+# 1. Power Domain Creation
+#-------------------------------------------------------------------------
+create_power_domain PD_TOP  -elements {.};
+create_power_domain PD_ANA  -elements {u_sah u_comp u_dac};
+create_power_domain PD_DIG  -elements {u_ctrl};
+
+#-------------------------------------------------------------------------
+# 2. Supply Nets and Ports
+#-------------------------------------------------------------------------
+# Top-level supplies (from pad ring / power grid)
+create_supply_net VDD_TOP  -domain PD_TOP;
+create_supply_net VDD_ANA  -domain PD_TOP;
+create_supply_net VDD_DIG  -domain PD_TOP;
+create_supply_net VSS      -domain PD_TOP;
+
+# Supply ports
+create_supply_port VDD_TOP;
+create_supply_port VDD_ANA;
+create_supply_port VDD_DIG;
+create_supply_port VSS;
+
+# Connect ports to nets
+connect_supply_net VDD_TOP -ports VDD_TOP;
+connect_supply_net VDD_ANA -ports VDD_ANA;
+connect_supply_net VDD_DIG -ports VDD_DIG;
+connect_supply_net VSS     -ports VSS;
+
+#-------------------------------------------------------------------------
+# 3. Domain Supply Association
+#-------------------------------------------------------------------------
+set_domain_supply_net PD_TOP  -primary_power_net VDD_TOP  -primary_ground_net VSS;
+set_domain_supply_net PD_ANA  -primary_power_net VDD_ANA  -primary_ground_net VSS;
+set_domain_supply_net PD_DIG  -primary_power_net VDD_DIG  -primary_ground_net VSS;
+
+#-------------------------------------------------------------------------
+# 4. Power Switches (Header switches, active-high control)
+#-------------------------------------------------------------------------
+# Analog domain switch
+create_power_switch SW_ANA     -domain PD_TOP     -input_supply_port  {VIN VDD_TOP}     -output_supply_port {VOUT VDD_ANA}     -control_port       {CTRL pwr_en_ana}     -on_state           {ON VIN {CTRL}}     -off_state          {OFF {!CTRL}};
+
+# Digital domain switch
+create_power_switch SW_DIG     -domain PD_TOP     -input_supply_port  {VIN VDD_TOP}     -output_supply_port {VOUT VDD_DIG}     -control_port       {CTRL pwr_en_dig}     -on_state           {ON VIN {CTRL}}     -off_state          {OFF {!CTRL}};
+
+#-------------------------------------------------------------------------
+# 5. Isolation Strategy
+#-------------------------------------------------------------------------
+# When PD_ANA shuts down, analog outputs to digital must be clamped
+create_power_state_group PD_ANA_STATES -domain PD_ANA;
+add_power_state PD_ANA_STATES -state RUN  {logic_expr {pwr_en_ana}};
+add_power_state PD_ANA_STATES -state OFF  {logic_expr {!pwr_en_ana}};
+
+set_isolation ISO_ANA_OUT     -domain PD_DIG     -isolation_power_net VDD_TOP     -isolation_ground_net VSS     -clamp_value 0     -applies_to inputs     -location self;
+
+set_isolation_control ISO_ANA_OUT     -domain PD_DIG     -isolation_signal pwr_en_ana     -isolation_sense low;
+
+#-------------------------------------------------------------------------
+# 6. Level Shifters (if domains operate at different voltages)
+#-------------------------------------------------------------------------
+# Example: PD_ANA at 1.8V, PD_DIG at 0.9V (DVFS / low-voltage digital)
+# In this capstone, both are 1.8V, but we declare them for completeness
+set_level_shifter LS_ANA_TO_DIG     -domain PD_DIG     -applies_to inputs     -rule low_to_high;
+
+set_level_shifter LS_DIG_TO_ANA     -domain PD_ANA     -applies_to outputs     -rule high_to_low;
+
+#-------------------------------------------------------------------------
+# 7. Retention Strategy (SAR state preserved during PD_DIG sleep)
+#-------------------------------------------------------------------------
+set_retention RET_SAR_CTRL     -domain PD_DIG     -retention_power_net VDD_TOP     -retention_ground_net VSS     -save_signal {retain_en high}     -restore_signal {retain_en high};
+
+set_retention_control RET_SAR_CTRL     -domain PD_DIG     -save_signal {retain_en high}     -restore_signal {retain_en high};
+
+#-------------------------------------------------------------------------
+# 8. Power State Table (PST) — for multi-voltage scenarios
+#-------------------------------------------------------------------------
+create_pst SAR_ADC_PST -supplies {VDD_TOP VDD_ANA VDD_DIG};
+add_pst_state PST_ON       -pst SAR_ADC_PST -state {1.8 1.8 1.8};
+add_pst_state PST_ANA_OFF  -pst SAR_ADC_PST -state {1.8 OFF 1.8};
+add_pst_state PST_DIG_OFF  -pst SAR_ADC_PST -state {1.8 1.8 OFF};
+add_pst_state PST_STANDBY  -pst SAR_ADC_PST -state {1.8 OFF OFF};
+
+#-------------------------------------------------------------------------
+# 9. Implicit connections for analog blocks
+#-------------------------------------------------------------------------
+# Analog blocks get their power from the electrical discipline nets
+# In a real IC, these would be connected to the supply rails via
+# connect_supply_net commands to the module's supply pins.
+# For this capstone, we use implicit power through the AMS discipline.

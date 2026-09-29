@@ -1,0 +1,48 @@
+//////////////////////////////////////////////////////////////////////////////
+// comparator_ams.va — Comparator, Verilog-AMS
+// SPICE-accurate comparator with hysteresis and propagation delay.
+// Includes power-down behavior for PA-AMS verification.
+//////////////////////////////////////////////////////////////////////////////
+`include "disciplines.vams"
+`include "constants.vams"
+
+timescale 1ns/1ps
+
+module comparator_ams (v_in_p, v_in_n, comp_out, en, clk, rst_n);
+    input  electrical v_in_p;   // positive analog input
+    input  electrical v_in_n;   // negative analog input
+    output logic      comp_out; // digital output
+    input  logic      en;       // enable (power gating)
+    input  logic      clk;
+    input  logic      rst_n;
+
+    real v_p, v_n;
+    logic comp_raw;
+
+    // Access analog inputs
+    analog begin
+        v_p = V(v_in_p);
+        v_n = V(v_in_n);
+    end
+
+    // Comparison with small hysteresis (2 mV)
+    always @(*) begin
+        if (v_p > v_n + 0.002)
+            comp_raw = 1'b1;
+        else if (v_p < v_n - 0.002)
+            comp_raw = 1'b0;
+        else
+            comp_raw = comp_raw;  // retain state (hysteresis)
+    end
+
+    // Registered output with power gating
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            comp_out <= 1'b0;
+        else if (en)
+            comp_out <= comp_raw;
+        else
+            comp_out <= 1'bx;
+    end
+
+endmodule

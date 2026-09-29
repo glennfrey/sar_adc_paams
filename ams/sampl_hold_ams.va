@@ -1,0 +1,41 @@
+//////////////////////////////////////////////////////////////////////////////
+// sampl_hold_ams.va — Sample-and-Hold, Verilog-AMS
+// SPICE-accurate model for use with VCS-AD / Xcelium AMS / PrimeSim.
+// Uses electrical discipline and analog block for true continuous-time behavior.
+//
+// SPICE-AMS Key Concept: continuous-time analog solver + digital events.
+//////////////////////////////////////////////////////////////////////////////
+`include "disciplines.vams"
+`include "constants.vams"
+
+timescale 1ns/1ps
+
+module sampl_hold_ams (v_in, v_out, sample_en, clk, rst_n);
+    input  electrical v_in;       // analog input
+    output electrical v_out;      // analog output
+    input  logic      sample_en;  // digital control
+    input  logic      clk;
+    input  logic      rst_n;
+
+    real v_sampled;
+    real v_in_val;
+
+    // Access analog input voltage
+    analog begin
+        v_in_val = V(v_in);
+    end
+
+    // Sample on digital clock edge
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            v_sampled <= 0.0;
+        else if (sample_en)
+            v_sampled <= v_in_val;
+    end
+
+    // Drive analog output
+    analog begin
+        V(v_out) <+ v_sampled;
+    end
+
+endmodule

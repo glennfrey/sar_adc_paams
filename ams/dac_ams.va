@@ -1,0 +1,40 @@
+//////////////////////////////////////////////////////////////////////////////
+// dac_ams.va — Binary-Weighted DAC, Verilog-AMS
+// Converts digital SAR word to analog voltage.
+//////////////////////////////////////////////////////////////////////////////
+`include "disciplines.vams"
+`include "constants.vams"
+
+timescale 1ns/1ps
+
+module dac_ams (dac_ctrl, en, v_out, v_ref);
+    parameter integer ADC_BITS = 8;
+    parameter real    VREF     = 1.8;
+
+    input  [ADC_BITS-1:0] dac_ctrl;
+    input                 en;
+    output electrical     v_out;
+    input  electrical     v_ref;  // reference voltage input
+
+    real v_dac_val;
+    real v_ref_val;
+
+    // Access reference
+    analog begin
+        v_ref_val = V(v_ref);
+    end
+
+    // DAC conversion
+    always @(*) begin
+        if (en)
+            v_dac_val = (real'(dac_ctrl) / real'(1 << ADC_BITS)) * v_ref_val;
+        else
+            v_dac_val = 0.0;
+    end
+
+    // Drive analog output
+    analog begin
+        V(v_out) <+ v_dac_val;
+    end
+
+endmodule

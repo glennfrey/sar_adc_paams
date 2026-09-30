@@ -247,3 +247,9 @@ MIT License — open-source for portfolio use.
 
 **Glenn Frey Olamit** — Senior Integration Design Engineer candidate  
 Mixed-signal verification project for Alpinum PA-AMS / UPF / RNM course
+
+
+## Certificates
+
+- [CoC Mixed Signal Verilog-AMS, RNM](CoC%20Glenn%20Frey%20Olamit%20RNM.pdf)
+- [CoC Power Aware-AMS](CoC%20Glenn%20Frey%20Olamit%20Power-aware.pdf)

@@ -245,7 +245,7 @@ MIT License — open-source for portfolio use.
 
 ## Author
 
-**Glenn Frey Olamit** — Senior Integration Design Engineer candidate  
+**Glenn Frey Olamit** — Senior Design Engineer candidate  
 Mixed-signal verification project for Alpinum PA-AMS / UPF / RNM course
 
 
